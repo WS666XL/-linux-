@@ -1,0 +1,13 @@
+build/
+.cache/
+.vscode/
+compile_commands.json
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+modules.order
+Module.symvers
+*.pb.h
+*.grpc.pb.*
