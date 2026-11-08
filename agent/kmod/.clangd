@@ -1,0 +1,24 @@
+# 内核模块由 Kbuild（make -C $(KDIR) M=...）编译，不在 compile_commands.json 里。
+# 这里按 Kbuild 实际参数补齐内核树头文件路径，避免 clangd 把 .c 当用户态代码报假错误。
+# 内核树路径与 Makefile 的 KDIR 默认值保持一致（$(HOME)/wsl-kernel）；
+# 如果本机内核树不在该位置，改成自己的路径。
+CompileFlags:
+  Add:
+    - -xc
+    - -std=gnu11
+    - -D__KERNEL__
+    - -DMODULE
+    - -nostdinc
+    - -I/home/xulei/wsl-kernel/arch/x86/include
+    - -I/home/xulei/wsl-kernel/arch/x86/include/generated
+    - -I/home/xulei/wsl-kernel/include
+    - -I/home/xulei/wsl-kernel/arch/x86/include/uapi
+    - -I/home/xulei/wsl-kernel/arch/x86/include/generated/uapi
+    - -I/home/xulei/wsl-kernel/include/uapi
+    - -I/home/xulei/wsl-kernel/include/generated/uapi
+    - -include
+    - /home/xulei/wsl-kernel/include/linux/compiler-version.h
+    - -include
+    - /home/xulei/wsl-kernel/include/linux/kconfig.h
+    - -include
+    - /home/xulei/wsl-kernel/include/linux/compiler_types.h

@@ -1,0 +1,7 @@
+# eBPF 源码由 CMake 用 clang -target bpf 单独编译，不在 compile_commands.json 里。
+# 否则 clangd 会借用同目录 .cpp 的 C++ 编译参数解析 .bpf.c，报 _Bool / void* 等假错误。
+# 只对 .bpf.c 生效，避免影响同目录的 C++ 文件。
+If:
+  PathMatch: .*\.bpf\.c$
+CompileFlags:
+  Add: [-xc, -std=gnu11, -D__TARGET_ARCH_x86]

@@ -1,0 +1,52 @@
+# 一键编排：MySQL + manager + 2 个 agent
+# 首次构建需代理：docker compose build --build-arg HTTP_PROXY=http://<proxy>:7897
+# 注意：agent 读的是容器内 /proc（演示用）；上生产需 host 网络或挂载宿主机 /proc
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: monitor_db
+      MYSQL_USER: monitor
+      MYSQL_PASSWORD: monitor123
+    volumes:
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot123"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  manager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.manager
+    environment:
+      MYSQL_HOST: mysql
+    ports:
+      - "50051:50051"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  agent1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent
+    environment:
+      NODE_ID: node-1
+      MANAGER_ADDR: manager:50051
+    depends_on:
+      - manager
+
+  agent2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent
+    environment:
+      NODE_ID: node-2
+      MANAGER_ADDR: manager:50051
+    depends_on:
+      - manager

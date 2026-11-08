@@ -1,0 +1,14 @@
+# 构建期代理通过 --build-arg HTTP_PROXY=... 注入（Docker 预定义参数自动注入 RUN 环境）
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake pkg-config \
+    libprotobuf-dev protobuf-compiler protobuf-compiler-grpc \
+    libgrpc++-dev libmysqlclient-dev libbpf-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_EBPF_OBJ=OFF && cmake --build build -j$(nproc)
+
+ENTRYPOINT ["/app/build/manager", "-c", "/app/configs/manager.conf"]

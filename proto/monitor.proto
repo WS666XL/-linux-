@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package monitor;
+
+// 单个节点一次采样的全部指标
+message MetricsSample {
+  string node_id = 1;
+  int64 timestamp_ms = 2;
+
+  // CPU（%）
+  double cpu_usage = 3;//使用率
+  double cpu_iowait = 4;//io
+  double cpu_softirq = 5;//软中断
+
+  // 内存（%）
+  double mem_usage = 6;//内存使用率
+
+  // 磁盘 IO
+  double disk_read_bps = 7;   // 读速率 B/s
+  double disk_write_bps = 8;  // 写速率 B/s
+  double disk_iops = 9;       // 每秒 IO 次数
+
+  // 网络
+  double net_recv_bps = 10;   // 收速率 B/s
+  double net_send_bps = 11;   // 发速率 B/s
+
+  // 软中断（内核模块采集，非 kmod 源时为 0）
+  double softirq_rate = 12;   // 每秒软中断触发次数
+
+  // 系统负载（/proc/loadavg，1/5/15 分钟平均值）
+  double load_avg1 = 13;
+  double load_avg5 = 14;
+  double load_avg15 = 15;
+}
+
+// 主机静态标识：每条上报流的第一条消息携带一次（重连后重发）
+message HostInfo {//主机标识信息
+  string hostname = 1;     // 主机名
+  string ip = 2;           // 默认路由网卡 IPv4
+  string machine_id = 3;   // /etc/machine-id
+  string kernel = 4;       // 内核版本（uname -r）
+  string os = 5;           // 发行版名称（/etc/os-release PRETTY_NAME）
+  int64 boot_time_ms = 6;  // 系统启动时间（毫秒时间戳）
+}
+
+message UploadRequest {//上传请求
+  MetricsSample sample = 1;
+  HostInfo host = 2;  // 仅流首条携带，后续消息为空
+}
+
+message UploadResponse {
+  bool ok = 1;
+  uint64 received = 2;  // 本次流累计接收条数
+}
+
+message QueryBestNodeRequest {//查询最优节点请求
+  string scenario = 1;  // cpu_bound / io_bound / net_bound / 空=默认
+}
+
+message BestNode {//单个最优节点信息
+  string node_id = 1;
+  double score = 2;  // 0~100，越高越优
+  MetricsSample latest = 3;//最新指标采样数据
+}
+
+message QueryBestNodeResponse {//查询返回结果
+  repeated BestNode ranked = 1;//repeated表示这个类似数组
+}
+
+service MonitorService {
+  // 客户端流式上报：agent 持续推送指标，流结束时统一确认
+  rpc UploadMetrics (stream UploadRequest) returns (UploadResponse);
+  // 调度：按业务场景加权打分，返回最优节点排名
+  rpc QueryBestNode (QueryBestNodeRequest) returns (QueryBestNodeResponse);
+}
+//`stream UploadRequest`：**客户端可以连续发很多个 UploadRequest 请求，不是只发一条**
+
+// ---------- 查询服务：面向运维/前端的历史与趋势分析 ----------
+
+message QueryNodeRequest {
+  string node_id = 1;
+}
+
+message QueryHistoryRequest {
+  string node_id = 1;
+  int64 start_ms = 2;  // 毫秒时间戳区间 [start, end]，0 表示不限
+  int64 end_ms = 3;
+  int32 limit = 4;     // 最多返回条数，<=0 取默认 600
+}
+
+message QueryHistoryResponse {
+  repeated MetricsSample samples = 1;
+}
+
+message QueryTrendRequest {
+  string node_id = 1;
+  int32 window_sec = 2;  // 统计最近 N 秒的均值，<=0 取默认 300
+}
+
+message QueryTrendResponse {
+  double cpu_avg = 1;        // 平均 CPU 使用率 %
+  double mem_avg = 2;        // 平均内存使用率 %
+  double softirq_avg = 3;    // 平均软中断速率 次/s
+  double net_total_avg_bps = 4;  // 平均网络收发合计 B/s
+  int32 sample_count = 5;    // 参与统计的采样条数
+}
+
+service QueryService {
+  // 单节点最新一次采样快照
+  rpc QueryLatest (QueryNodeRequest) returns (MetricsSample);
+  // 时间区间内的历史采样
+  rpc QueryHistory (QueryHistoryRequest) returns (QueryHistoryResponse);
+  // 最近窗口内的均值趋势
+  rpc QueryTrend (QueryTrendRequest) returns (QueryTrendResponse);
+  // 节点主机标识信息
+  rpc QueryHost (QueryNodeRequest) returns (HostInfo);
+}
